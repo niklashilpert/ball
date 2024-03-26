@@ -2,7 +2,6 @@ package ui
 
 import ballRadius
 import screenBounds
-import java.awt.GraphicsEnvironment
 import java.awt.Point
 import java.awt.event.*
 import javax.swing.SwingUtilities
@@ -12,13 +11,18 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.system.exitProcess
 
-const val bounceAbsorbFactorX = 0.2
-const val bounceAbsorbFactorY = 0.3
+const val GRAVITY = 1.5
+
+const val BOUNCE_ABSORB_FACTOR_X = 0.2
+const val BOUNCE_ABSORB_FACTOR_Y = 0.3
+
+const val VEL_X_RESET_THRESHOLD = 0.5
+const val VEL_Y_RESET_THRESHOLD = 1
+
+const val FPS = 60
+const val TIMER_DELAY = 1000 / FPS
 
 class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: ExitFrame) : MouseListener, MouseMotionListener {
-    private val fps = 60
-    private val timerDelay = 1000 / fps
-
     // The absolute coordinates of the ball frame
     private var absoluteX = ballFrame.x
     private var absoluteY = ballFrame.y
@@ -31,13 +35,14 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
     private var velX = 0.0
     private var velY = 0.0
 
+    private var isDragging = false
     private var applyGravity = true
 
     // Keeps track of the ballFrame positions of the last 500ms
-    private var lastFramePositions = Array(fps/2) { Point(0, 0) }
+    private var lastFramePositions = Array(FPS/2) { Point(0, 0) }
 
-    private var physicsTimer = Timer(timerDelay) { tick() }
-    private var posTimer = Timer(timerDelay) {
+    private var physicsTimer = Timer(TIMER_DELAY) { tick() }
+    private var posTimer = Timer(TIMER_DELAY) {
         for (i in 1..<lastFramePositions.size) {
             lastFramePositions[i] = lastFramePositions[i - 1]
         }
@@ -48,32 +53,38 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
         physicsTimer.start()
     }
 
-    private val device = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice
-    private val bounds = device.defaultConfiguration.bounds
-
     override fun mousePressed(e: MouseEvent) {
-        physicsTimer.stop()
+        val center = Point(50, 50)
+        println("$center, ${e.point}")
+        if (e.point.distance(center) < 50) {
+            println("Is")
+            isDragging = true
 
-        if (e.button == MouseEvent.BUTTON3) {
-            SwingUtilities.invokeLater {
-                exitFrame.isVisible = true
+            physicsTimer.stop()
+
+            if (e.button == MouseEvent.BUTTON3) {
+                SwingUtilities.invokeLater {
+                    exitFrame.isVisible = true
+                }
             }
+
+            lastFramePositions = Array(30) { Point(ballFrame.x, ballFrame.y) }
+
+            relX = e.x
+            relY = e.y
+            velX = 0.0
+            velY = 0.0
+            applyGravity = true
+
+            posTimer.start()
         }
-
-        lastFramePositions = Array(30) { Point(ballFrame.x, ballFrame.y) }
-
-        relX = e.x
-        relY = e.y
-        velX = 0.0
-        velY = 0.0
-        applyGravity = true
-
-        posTimer.start()
     }
 
     override fun mouseDragged(e: MouseEvent) {
-        absoluteX = max(min(e.xOnScreen - relX, bounds.x + bounds.width - ballFrame.width), bounds.x)
-        absoluteY = max(min(e.yOnScreen - relY, bounds.y + bounds.height - ballFrame.height), bounds.y)
+        if (!isDragging) return
+
+        absoluteX = max(min(e.xOnScreen - relX, screenBounds.x + screenBounds.width - ballFrame.width), screenBounds.x)
+        absoluteY = max(min(e.yOnScreen - relY, screenBounds.y + screenBounds.height - ballFrame.height), screenBounds.y)
 
         SwingUtilities.invokeLater {
             ballFrame.setLocation(absoluteX, absoluteY)
@@ -81,11 +92,16 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
     }
 
     override fun mouseReleased(e: MouseEvent) {
+        if (!isDragging) return
+
+        isDragging = false
+
         posTimer.stop()
 
         if (e.button == MouseEvent.BUTTON3) {
             if (e.xOnScreen >= exitFrame.x && e.xOnScreen <= exitFrame.x + exitFrame.width &&
-                e.yOnScreen >= exitFrame.y && e.yOnScreen <= exitFrame.y + exitFrame.height) {
+                e.yOnScreen >= exitFrame.y && e.yOnScreen <= exitFrame.y + exitFrame.height
+            ) {
                 exitFrame.dispose()
                 ballFrame.dispose()
                 exitProcess(0)
@@ -110,7 +126,6 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
         physicsTimer.start()
     }
 
-
     private fun tick() {
         SwingUtilities.invokeLater {
             absoluteX = updateX(absoluteX)
@@ -119,13 +134,6 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
             rotateBall(velX)
         }
     }
-
-
-
-    override fun mouseClicked(e: MouseEvent) {}
-    override fun mouseEntered(e: MouseEvent) {}
-    override fun mouseExited(e: MouseEvent) {}
-    override fun mouseMoved(e: MouseEvent) {}
 
     private fun updateX(oldX: Int): Int {
         var x = oldX + Math.round(velX).toInt()
@@ -138,14 +146,14 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
         // Clips the new coordinates into the default screen bounds and inverts the x velocity if the ball bounces
         if (x < screenBounds.x) {
             x = screenBounds.x
-            velX *= -(1 - bounceAbsorbFactorX)
+            velX *= -(1 - BOUNCE_ABSORB_FACTOR_X)
         } else if (x > screenBounds.x + screenBounds.width - ballFrame.width) {
             x = screenBounds.x + screenBounds.width - ballFrame.width
-            velX *= -(1 - bounceAbsorbFactorX)
+            velX *= -(1 - BOUNCE_ABSORB_FACTOR_X)
         }
 
         // Stops the ball if the velocity becomes too small
-        if (velX < .5 && velX > -0.5) velX = 0.0
+        if (velX < VEL_X_RESET_THRESHOLD && velX > -VEL_X_RESET_THRESHOLD) velX = 0.0
 
         return x
     }
@@ -155,19 +163,19 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
 
         if (y < screenBounds.y) {
             y = screenBounds.y
-            velY *= -(1 - bounceAbsorbFactorY) * min(abs(velY) / 7, 1.0)
+            velY *= -(1 - BOUNCE_ABSORB_FACTOR_Y) * min(abs(velY) / 7, 1.0)
         } else if (y > screenBounds.y + screenBounds.height - ballFrame.height) {
             y = screenBounds.y + screenBounds.height - ballFrame.height
-            velY *= -(1 - bounceAbsorbFactorY) * min(abs(velY) / 7, 1.0)
+            velY *= -(1 - BOUNCE_ABSORB_FACTOR_Y) * min(abs(velY) / 7, 1.0)
 
             // If the ball bounces off the ground with very little velocity,
             // no gravity will be added to prevent infinite bounces
-            if (velY < 1 && velY > -1) {
+            if (velY < VEL_Y_RESET_THRESHOLD && velY > -VEL_Y_RESET_THRESHOLD) {
                 velY = 0.0
                 applyGravity = false
             }
         } else if (applyGravity) {
-            velY += 1.5 // Gravity
+            velY += GRAVITY
         }
 
         return y
@@ -177,4 +185,10 @@ class BallMouseHandler(private val ballFrame: BallFrame, private val exitFrame: 
         ballFrame.transform.rotate((rotationDistance / (2 * Math.PI * ballRadius) * 2 * Math.PI), ballRadius.toDouble(), ballRadius.toDouble())
         ballFrame.redraw()
     }
+
+
+    override fun mouseClicked(e: MouseEvent) {}
+    override fun mouseEntered(e: MouseEvent) {}
+    override fun mouseExited(e: MouseEvent) {}
+    override fun mouseMoved(e: MouseEvent) {}
 }
