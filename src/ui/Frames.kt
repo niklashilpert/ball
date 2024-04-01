@@ -1,6 +1,6 @@
 package ui
 
-import ballBounds
+import BallType
 import exitBounds
 import screenBounds
 import java.awt.*
@@ -9,11 +9,18 @@ import javax.imageio.ImageIO
 import javax.swing.JFrame
 import javax.swing.JPanel
 
-class BallFrame : IconFrame("Ball", ballBounds, "Basketball")
-class ExitFrame : IconFrame("X", exitBounds, "X")
+class BallFrame(location: Point, type: BallType) : IconFrame(
+    "Ball",
+    location,
+    Dimension((type.radius * 2).toInt(), (type.radius * 2).toInt()),
+    type.iconName
+)
 
-open class IconFrame(title: String, frameBounds: Rectangle, iconName: String) : JFrame(title) {
-    class DrawingPanel(size: Dimension, private val iconName: String, private val transform: AffineTransform) : JPanel() {
+class ExitFrame : IconFrame("X", exitBounds.location, exitBounds.size, "X")
+
+open class IconFrame(title: String, framePos: Point, frameSize: Dimension, iconName: String) : JFrame(title) {
+    class DrawingPanel(size: Dimension, private val iconName: String, private val transform: AffineTransform) :
+        JPanel() {
         init {
             preferredSize = size
             background = Color(0, 0, 0, 0)
@@ -28,12 +35,12 @@ open class IconFrame(title: String, frameBounds: Rectangle, iconName: String) : 
     }
 
     val transform: AffineTransform = AffineTransform.getRotateInstance(0.0)
-    private val drawingPanel = DrawingPanel(frameBounds.size, iconName, transform)
+    private val drawingPanel = DrawingPanel(frameSize.size, iconName, transform)
 
     init {
-        location = Point(screenBounds.x + frameBounds.x, screenBounds.y + frameBounds.y)
+        location = Point(screenBounds.x + framePos.x, screenBounds.y + framePos.y)
         isUndecorated = true
-        background = Color(0, 0, 0,0)
+        background = Color(0, 0, 0, 0)
         isAlwaysOnTop = true
 
         this.add(drawingPanel)

@@ -1,18 +1,23 @@
-import ui.BallFrame
 import ui.BallMouseHandler
 import ui.ExitFrame
+import java.awt.Point
 import javax.swing.SwingUtilities
 
+
+val ballFrames = arrayListOf(
+    //BallType.Basketball.newFrameAt(Point(25, 25)),
+    BallType.Basketball.newFrameAt(Point(0, 0)),
+)
+
 val exitFrame = ExitFrame()
-val ballFrame = BallFrame().apply {
-    val handler = BallMouseHandler(this, exitFrame)
-    addMouseListener(handler)
-    addMouseMotionListener(handler)
-}
 
 fun main() {
-    SwingUtilities.invokeLater {
-        ballFrame.isVisible = true
+    for (bf in ballFrames) {
+        val handler = BallMouseHandler(bf, exitFrame)
+        bf.addMouseListener(handler)
+        bf.addMouseMotionListener(handler)
+        SwingUtilities.invokeLater {
+            bf.isVisible = true
+        }
     }
 }
-

@@ -8,9 +8,3 @@ val screenBounds: Rectangle = run {
 }
 
 val exitBounds = Rectangle(25, 25, 50, 50)
-val ballBounds = Rectangle(
-    screenBounds.size.width/2 - ballRadius,
-    screenBounds.size.height/2 - ballRadius,
-    2*ballRadius,
-    2*ballRadius
-)
